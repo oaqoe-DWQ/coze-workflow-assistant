@@ -7,7 +7,7 @@ import time
 import logging
 import requests
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 import config
 
@@ -116,7 +116,9 @@ def build_rich_text_message(
     Returns:
         消息卡片 JSON 结构
     """
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 使用中国时区（东八区 UTC+8）
+    china_tz = timezone(timedelta(hours=8))
+    current_time = datetime.now(china_tz).strftime("%Y-%m-%d %H:%M:%S")
     
     # 根据状态设置颜色和文本
     if status == "success":
