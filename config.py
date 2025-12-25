@@ -4,8 +4,8 @@
 """
 
 # ===== Coze 配置 =====
-# 从 Coze 平台获取的 API Token
-COZE_API_TOKEN = 'cztei_hKynCJNCyYLWnkVC2uyJyiBFkUTblXe7T3XCghj66lwOUeKcVesnmzh2IQsP4FiKG'
+# 从 Coze 平台获取的 API Token（过期时间：2026-01-24）
+COZE_API_TOKEN = 'pat_YxybptyPLdYvVpEkIdyQ656pigqf9ZBpP37FNSHNVQxOFoS6kW3NjiRj3zLxemWl'
 
 # Coze 工作流 ID（从工作流的网址最后一段数字）
 COZE_WORKFLOW_ID = '7561294254754365486'
