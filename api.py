@@ -35,7 +35,7 @@ coze_client = Coze(
 
 def process_workflow(doc_url: str) -> dict:
     """
-    处理 Coze 工作流
+    处理 Coze 工作流（流式调用）
     
     Args:
         doc_url: 文档链接
@@ -46,215 +46,133 @@ def process_workflow(doc_url: str) -> dict:
     try:
         logger.info(f"开始调用工作流: doc_url={doc_url}")
         
-        # 收集工作流的输出结果
-        workflow_results = []
-        workflow_output = None  # 存储工作流的输出变量
-        workflow_completed = False
+        # 存储工作流结果
+        workflow_messages = []  # 所有消息
+        workflow_output = None  # 最终输出变量
+        workflow_data = {}  # 工作流数据
         
-        # 构建工作流调用参数
-        run_params = {
+        # 构建调用参数
+        params = {
             "workflow_id": config.COZE_WORKFLOW_ID,
             "parameters": {
-                "inputurl": doc_url
+                "inputurl": doc_url  # 使用 inputurl 参数名
             }
         }
         
-        # 如果配置了 bot_id，添加到参数中
+        # 添加 bot_id（如果配置了）
         if hasattr(config, 'COZE_BOT_ID') and config.COZE_BOT_ID:
-            run_params["bot_id"] = config.COZE_BOT_ID
+            params["bot_id"] = config.COZE_BOT_ID
             logger.info(f"使用 Bot ID: {config.COZE_BOT_ID}")
         
-        # 如果配置了 app_id，添加到参数中（不能与 bot_id 同时使用）
-        if hasattr(config, 'COZE_APP_ID') and config.COZE_APP_ID:
-            if 'bot_id' in run_params:
-                logger.warning("⚠️ bot_id 和 app_id 不能同时使用，优先使用 bot_id")
-            else:
-                run_params["app_id"] = config.COZE_APP_ID
-                logger.info(f"使用 App ID: {config.COZE_APP_ID}")
+        logger.info(f"调用参数: {params}")
         
-        logger.info(f"工作流调用参数: {run_params}")
+        # 开始流式调用
+        stream = coze_client.workflows.runs.stream(**params)
         
-        # 调用工作流（流式）
-        stream = coze_client.workflows.runs.stream(**run_params)
+        logger.info("开始监听工作流事件流...")
         
         # 处理流式事件
-        logger.info("开始监听工作流事件流...")
-        event_count = 0
         for event in stream:
-            event_count += 1
-            logger.info(f"收到事件 [{event_count}]: {event.event}")
+            event_type = event.event
+            logger.info(f"收到事件: {event_type}")
             
-            if event.event == WorkflowEventType.MESSAGE:
-                # 收到消息事件
+            # MESSAGE 事件 - 工作流执行过程中的消息
+            if event_type == WorkflowEventType.MESSAGE:
                 message = event.message
-                logger.info(f"工作流消息内容: {message}")
-                logger.info(f"工作流消息类型: {type(message)}")
-                
-                # 详细记录事件的所有属性
-                logger.info(f"事件完整内容: {event}")
-                logger.info(f"事件属性列表: {dir(event)}")
-                
+                logger.info(f"MESSAGE 内容: {message}")
                 if message:
-                    workflow_results.append(str(message))
-                    
-                    # 尝试从消息内容中提取 output
-                    if isinstance(message, dict):
-                        logger.info(f"消息是字典，内容: {message}")
-                        if 'output' in message:
-                            workflow_output = message.get('output')
-                            logger.info(f"✅ 从消息中提取到 output: {workflow_output}")
-                    elif isinstance(message, str):
-                        # 如果消息是字符串，尝试解析 JSON
-                        try:
-                            import json
-                            message_dict = json.loads(message)
-                            if isinstance(message_dict, dict) and 'output' in message_dict:
-                                workflow_output = message_dict.get('output')
-                                logger.info(f"✅ 从 JSON 字符串中提取到 output: {workflow_output}")
-                        except:
-                            pass
-                
-                # 尝试从事件数据中提取输出变量
-                if hasattr(event, 'data') and event.data:
-                    logger.info(f"事件有 data 属性: {event.data}")
-                    if isinstance(event.data, dict) and 'output' in event.data:
-                        workflow_output = event.data.get('output')
-                        logger.info(f"✅ 从 event.data 提取到 output: {workflow_output}")
-                    
-            elif event.event == WorkflowEventType.ERROR:
-                # 收到错误事件
+                    workflow_messages.append(str(message))
+            
+            # ERROR 事件 - 工作流执行错误
+            elif event_type == WorkflowEventType.ERROR:
                 error = event.error
-                logger.error(f"工作流错误: {error}")
+                logger.error(f"ERROR: {error}")
                 return {
                     "success": False,
                     "error": str(error)
                 }
-                
-            elif event.event == WorkflowEventType.INTERRUPT:
-                # 收到中断事件，需要继续执行
-                logger.info(f"工作流中断，准备恢复执行: {event.interrupt}")
-                
-                # 获取中断信息
-                interrupt_data = event.interrupt.interrupt_data
-                event_id = interrupt_data.event_id
-                interrupt_type = interrupt_data.type
-                
-                logger.info(f"中断类型: {interrupt_type}, Event ID: {event_id}")
-                
-                # 调用 resume 继续执行工作流
-                try:
-                    logger.info("调用 resume 接口继续执行工作流...")
-                    
-                    # 构建 resume 参数
-                    resume_params = {
-                        "workflow_id": config.COZE_WORKFLOW_ID,
-                        "event_id": event_id,
-                        "resume_data": "continue",
-                        "interrupt_type": interrupt_type
-                    }
-                    
-                    # 添加 bot_id 或 app_id（如果有）
-                    if hasattr(config, 'COZE_BOT_ID') and config.COZE_BOT_ID:
-                        resume_params["bot_id"] = config.COZE_BOT_ID
-                    elif hasattr(config, 'COZE_APP_ID') and config.COZE_APP_ID:
-                        resume_params["app_id"] = config.COZE_APP_ID
-                    
-                    resume_stream = coze_client.workflows.runs.resume(**resume_params)
-                    
-                    # 处理恢复后的流式事件
-                    resume_message_count = 0
-                    for resume_event in resume_stream:
-                        if resume_event.event == WorkflowEventType.MESSAGE:
-                            message = resume_event.message
-                            logger.info(f"恢复后的消息 [{resume_message_count + 1}]: {message}")
-                            logger.info(f"恢复后的消息类型: {type(message)}")
-                            logger.info(f"恢复后的事件完整内容: {resume_event}")
-                            
-                            if message:
-                                workflow_results.append(str(message))
-                                resume_message_count += 1
-                                
-                                # 尝试从恢复后的消息中提取 output
-                                if isinstance(message, dict) and 'output' in message:
-                                    workflow_output = message.get('output')
-                                    logger.info(f"✅ 从恢复消息中提取到 output: {workflow_output}")
-                                elif isinstance(message, str):
-                                    try:
-                                        import json
-                                        message_dict = json.loads(message)
-                                        if isinstance(message_dict, dict) and 'output' in message_dict:
-                                            workflow_output = message_dict.get('output')
-                                            logger.info(f"✅ 从恢复消息 JSON 中提取到 output: {workflow_output}")
-                                    except:
-                                        pass
-                        elif resume_event.event == WorkflowEventType.ERROR:
-                            error = resume_event.error
-                            logger.error(f"恢复后出错: {error}")
-                            return {
-                                "success": False,
-                                "error": str(error)
-                            }
-                        else:
-                            # 记录其他类型的事件
-                            logger.info(f"恢复后收到事件: {resume_event.event}")
-                    
-                    logger.info(f"✅ 工作流恢复执行完成，收到 {resume_message_count} 条消息")
-                    
-                except Exception as resume_error:
-                    logger.error(f"恢复工作流时出错: {str(resume_error)}")
-                    workflow_results.append(f"工作流恢复失败: {str(resume_error)}")
             
+            # INTERRUPT 事件 - 工作流中断，需要恢复
+            elif event_type == WorkflowEventType.INTERRUPT:
+                logger.info(f"INTERRUPT: {event.interrupt}")
+                interrupt_data = event.interrupt.interrupt_data
+                
+                # 自动恢复执行
+                logger.info("自动恢复工作流执行...")
+                resume_stream = coze_client.workflows.runs.resume(
+                    workflow_id=config.COZE_WORKFLOW_ID,
+                    event_id=interrupt_data.event_id,
+                    resume_data="",
+                    interrupt_type=interrupt_data.type
+                )
+                
+                # 递归处理恢复后的事件
+                for resume_event in resume_stream:
+                    if resume_event.event == WorkflowEventType.MESSAGE:
+                        if resume_event.message:
+                            workflow_messages.append(str(resume_event.message))
+                    elif resume_event.event == WorkflowEventType.ERROR:
+                        return {"success": False, "error": str(resume_event.error)}
+            
+            # 其他事件类型，记录用于调试
             else:
-                # 记录其他类型的事件（用于调试）
-                logger.info(f"收到其他类型事件: {event.event}")
+                logger.info(f"其他事件类型: {event_type}")
+                # 记录完整事件以便调试
+                logger.info(f"完整事件对象: {event}")
+                
+                # 尝试提取事件中的数据
+                if hasattr(event, '__dict__'):
+                    logger.info(f"事件属性: {event.__dict__}")
         
-        # 流式事件循环结束，表示工作流已完成
-        workflow_completed = True
-        logger.info("✅ 工作流事件流已结束，工作流执行完成")
+        logger.info("✅ 工作流事件流结束")
         
-        # 检查是否有结果
-        if not workflow_results:
-            logger.warning("工作流执行完成，但未收到任何输出消息")
-            result_text = "工作流执行完成（无输出结果）"
-        else:
-            result_text = "\n".join(workflow_results)
-            logger.info(f"工作流执行完成，共收到 {len(workflow_results)} 条消息")
-        
-        # 如果还没有提取到 output，尝试从结果文本中提取
-        if not workflow_output and result_text:
-            logger.info("尝试从结果文本中提取 output...")
-            # 尝试匹配 "output": "xxx" 或 output : xxx 格式
+        # 提取最终输出
+        # 方法1: 从最后一个消息中提取（很多工作流会在最后输出结果）
+        if workflow_messages:
+            last_message = workflow_messages[-1]
+            logger.info(f"最后一条消息: {last_message}")
+            
+            # 尝试从消息中提取 output
             import re
-            output_patterns = [
+            # 匹配 output: xxx 或 "output": "xxx" 格式
+            patterns = [
                 r'"output"\s*:\s*"([^"]+)"',
                 r'output\s*:\s*"([^"]+)"',
-                r'output\s*=\s*"([^"]+)"',
-                r'output:\s*([^\s\n]+)',
+                r'output\s*:\s*([^\s\n,\}]+)',
             ]
-            for pattern in output_patterns:
-                match = re.search(pattern, result_text)
+            
+            for pattern in patterns:
+                match = re.search(pattern, last_message)
                 if match:
                     workflow_output = match.group(1)
-                    logger.info(f"✅ 从结果文本中提取到 output: {workflow_output}")
+                    logger.info(f"✅ 从消息中提取到 output: {workflow_output}")
                     break
         
-        # 如果有输出变量，添加到结果中
-        if workflow_output:
-            logger.info(f"✅ 工作流输出变量: {workflow_output}")
-            # 如果 output 是链接，添加协议前缀
-            if workflow_output and not workflow_output.startswith(('http://', 'https://')):
-                workflow_output = f"http://{workflow_output}"
-                logger.info(f"添加协议前缀后: {workflow_output}")
-        else:
-            logger.warning("⚠️ 未能提取到工作流输出变量 (output)")
+        # 如果还是没有提取到，检查所有消息
+        if not workflow_output:
+            full_text = "\n".join(workflow_messages)
+            for pattern in patterns:
+                match = re.search(pattern, full_text)
+                if match:
+                    workflow_output = match.group(1)
+                    logger.info(f"✅ 从完整文本中提取到 output: {workflow_output}")
+                    break
         
-        logger.info(f"最终结果: {result_text}")
+        # 添加 URL 协议前缀
+        if workflow_output and not workflow_output.startswith(('http://', 'https://')):
+            workflow_output = f"http://{workflow_output}"
+            logger.info(f"添加协议后: {workflow_output}")
+        
+        # 构建返回结果
+        result_text = "\n".join(workflow_messages) if workflow_messages else "工作流执行完成"
+        
+        logger.info(f"最终结果文本: {result_text}")
+        logger.info(f"最终输出链接: {workflow_output}")
         
         return {
             "success": True,
             "result": result_text,
-            "output": workflow_output,  # 返回输出变量
-            "completed": workflow_completed
+            "output": workflow_output
         }
         
     except Exception as e:
@@ -299,7 +217,7 @@ def api_process():
             message_card = build_rich_text_message(
                 doc_url=doc_url,
                 workflow_result=result.get('result', '工作流执行完成'),
-                workflow_output=result.get('output'),  # 传递输出变量
+                workflow_output=result.get('output'),  # 传递输出链接
                 status="success"
             )
             

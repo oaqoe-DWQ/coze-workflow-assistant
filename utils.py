@@ -7,7 +7,7 @@ import time
 import logging
 import requests
 from typing import Optional, Dict, Any
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 
 import config
 
@@ -112,7 +112,7 @@ def build_rich_text_message(
     Args:
         doc_url: 原始文档链接
         workflow_result: 工作流处理结果
-        workflow_output: 工作流输出变量（output）
+        workflow_output: 工作流输出链接
         status: 任务状态 (success/error)
     
     Returns:
@@ -144,7 +144,7 @@ def build_rich_text_message(
         }
     ]
     
-    # 如果有输出链接，优先显示
+    # 如果有输出链接，优先显示（最醒目）
     if workflow_output:
         elements.append({
             "tag": "div",
@@ -166,33 +166,22 @@ def build_rich_text_message(
         }
     })
     
-    # 如果有工作流结果，添加到卡片中
-    if workflow_result:
-        # 显示处理结果文本（如果内容不是太长）
-        if len(workflow_result) < 500:
-            elements.append({
-                "tag": "div",
-                "text": {
-                    "tag": "lark_md",
-                    "content": f"**📝 处理详情:**\n{workflow_result}"
-                }
-            })
-        else:
-            # 如果结果太长，只显示摘要
-            elements.append({
-                "tag": "div",
-                "text": {
-                    "tag": "lark_md",
-                    "content": f"**📝 处理详情:** 执行成功（详细信息已省略）"
-                }
-            })
+    # 如果有工作流详细结果，添加（但不要太长）
+    if workflow_result and len(workflow_result) < 300:
+        elements.append({
+            "tag": "div",
+            "text": {
+                "tag": "lark_md",
+                "content": f"**📝 处理详情:**\n{workflow_result}"
+            }
+        })
     
     # 添加完成时间
     elements.append({
         "tag": "div",
         "text": {
             "tag": "lark_md",
-            "content": f"**完成时间:** {current_time}"
+            "content": f"**⏰ 完成时间:** {current_time}"
         }
     })
     
