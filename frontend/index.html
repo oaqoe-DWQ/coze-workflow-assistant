@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coze 工作流助手 - 飞书文档处理</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <div class="logo">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                    <rect width="40" height="40" rx="12" fill="url(#gradient)"/>
+                    <path d="M20 10L28 16V24L20 30L12 24V16L20 10Z" fill="white" opacity="0.9"/>
+                    <defs>
+                        <linearGradient id="gradient" x1="0" y1="0" x2="40" y2="40">
+                            <stop offset="0%" stop-color="#667eea"/>
+                            <stop offset="100%" stop-color="#764ba2"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <h1>Coze 工作流助手</h1>
+            </div>
+            <p class="subtitle">飞书文档智能处理</p>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <div class="card">
+                <h2>📄 提交文档链接</h2>
+                <p class="description">输入飞书文档链接，自动触发 Coze 工作流处理，完成后将在群内收到通知。</p>
+                
+                <form id="documentForm" class="form">
+                    <div class="form-group">
+                        <label for="docUrl">飞书文档链接</label>
+                        <input 
+                            type="text" 
+                            id="docUrl" 
+                            name="docUrl" 
+                            placeholder="https://xxx.feishu.cn/docx/xxxxx"
+                            required
+                        >
+                        <small class="hint">支持 docx、wiki、docs、sheets、base 等格式</small>
+                    </div>
+
+                    <button type="submit" class="btn-primary" id="submitBtn">
+                        <span class="btn-text">开始处理</span>
+                        <span class="btn-loader" style="display: none;">
+                            <span class="spinner"></span>
+                            处理中...
+                        </span>
+                    </button>
+                </form>
+
+                <!-- 状态提示 -->
+                <div id="statusMessage" class="status-message" style="display: none;"></div>
+            </div>
+
+            <!-- 使用说明 -->
+            <div class="card info-card">
+                <h3>💡 使用说明</h3>
+                <ol class="steps">
+                    <li>复制飞书文档的分享链接</li>
+                    <li>粘贴到上方输入框</li>
+                    <li>点击"开始处理"按钮</li>
+                    <li>等待工作流执行完成</li>
+                    <li>在飞书群内查看处理结果</li>
+                </ol>
+            </div>
+
+            <!-- 支持的链接格式 -->
+            <div class="card example-card">
+                <h3>🔗 支持的链接格式</h3>
+                <ul class="examples">
+                    <li><code>https://xxx.feishu.cn/docx/xxxxx</code> - 飞书文档</li>
+                    <li><code>https://xxx.feishu.cn/wiki/xxxxx</code> - 飞书知识库</li>
+                    <li><code>https://xxx.feishu.cn/sheets/xxxxx</code> - 飞书表格</li>
+                    <li><code>https://xxx.feishu.cn/docs/xxxxx</code> - 旧版文档</li>
+                </ul>
+            </div>
+        </main>
+
+        <!-- 页脚 -->
+        <footer class="footer">
+            <p>Powered by <a href="https://www.coze.cn" target="_blank">Coze</a> & <a href="https://www.feishu.cn" target="_blank">飞书</a></p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
