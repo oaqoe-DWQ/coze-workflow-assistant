@@ -48,6 +48,7 @@ def process_workflow(doc_url: str) -> dict:
         
         # 收集工作流的输出结果
         workflow_results = []
+        workflow_output = None  # 存储工作流的输出变量
         workflow_completed = False
         
         # 调用工作流（流式）
@@ -71,6 +72,13 @@ def process_workflow(doc_url: str) -> dict:
                 logger.info(f"工作流消息内容: {message}")
                 if message:
                     workflow_results.append(str(message))
+                
+                # 尝试提取输出变量（工作流完成时会包含输出）
+                if hasattr(event, 'data') and event.data:
+                    logger.info(f"事件数据: {event.data}")
+                    if isinstance(event.data, dict) and 'output' in event.data:
+                        workflow_output = event.data.get('output')
+                        logger.info(f"✅ 提取到输出变量: {workflow_output}")
                     
             elif event.event == WorkflowEventType.ERROR:
                 # 收到错误事件
@@ -144,11 +152,20 @@ def process_workflow(doc_url: str) -> dict:
             result_text = "\n".join(workflow_results)
             logger.info(f"工作流执行完成，共收到 {len(workflow_results)} 条消息")
         
+        # 如果有输出变量，添加到结果中
+        if workflow_output:
+            logger.info(f"✅ 工作流输出变量: {workflow_output}")
+            # 如果 output 是链接，添加协议前缀
+            if workflow_output and not workflow_output.startswith(('http://', 'https://')):
+                workflow_output = f"http://{workflow_output}"
+                logger.info(f"添加协议前缀后: {workflow_output}")
+        
         logger.info(f"最终结果: {result_text}")
         
         return {
             "success": True,
             "result": result_text,
+            "output": workflow_output,  # 返回输出变量
             "completed": workflow_completed
         }
         
@@ -194,6 +211,7 @@ def api_process():
             message_card = build_rich_text_message(
                 doc_url=doc_url,
                 workflow_result=result.get('result', '工作流执行完成'),
+                workflow_output=result.get('output'),  # 传递输出变量
                 status="success"
             )
             

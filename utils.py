@@ -103,6 +103,7 @@ def extract_doc_url(text: str) -> Optional[str]:
 def build_rich_text_message(
     doc_url: str,
     workflow_result: str = None,
+    workflow_output: str = None,
     status: str = "success"
 ) -> Dict[str, Any]:
     """
@@ -111,6 +112,7 @@ def build_rich_text_message(
     Args:
         doc_url: 原始文档链接
         workflow_result: 工作流处理结果
+        workflow_output: 工作流输出变量（output）
         status: 任务状态 (success/error)
     
     Returns:
@@ -139,45 +141,51 @@ def build_rich_text_message(
         },
         {
             "tag": "hr"
-        },
-        {
-            "tag": "div",
-            "text": {
-                "tag": "lark_md",
-                "content": f"**原始文档:** [点击查看]({doc_url})"
-            }
         }
     ]
     
-    # 如果有工作流结果，添加到卡片中
-    if workflow_result:
-        # 尝试从结果中提取链接
-        url_pattern = r'https?://[^\s\)\]]+(?:\([^\)]*\))?[^\s\)\]]*'
-        urls = re.findall(url_pattern, workflow_result)
-        
-        # 显示处理结果文本
+    # 如果有输出链接，优先显示
+    if workflow_output:
         elements.append({
             "tag": "div",
             "text": {
                 "tag": "lark_md",
-                "content": f"**处理结果:**\n{workflow_result}"
+                "content": f"**🎉 生成结果:** [点击查看]({workflow_output})"
             }
         })
-        
-        # 如果找到链接，单独显示一个醒目的结果链接
-        if urls:
+        elements.append({
+            "tag": "hr"
+        })
+    
+    # 显示原始文档
+    elements.append({
+        "tag": "div",
+        "text": {
+            "tag": "lark_md",
+            "content": f"**📄 原始文档:** [点击查看]({doc_url})"
+        }
+    })
+    
+    # 如果有工作流结果，添加到卡片中
+    if workflow_result:
+        # 显示处理结果文本（如果内容不是太长）
+        if len(workflow_result) < 500:
             elements.append({
-                "tag": "hr"
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": f"**📝 处理详情:**\n{workflow_result}"
+                }
             })
-            for idx, url in enumerate(urls, 1):
-                link_title = f"🔗 结果链接 {idx}" if len(urls) > 1 else "🔗 结果链接"
-                elements.append({
-                    "tag": "div",
-                    "text": {
-                        "tag": "lark_md",
-                        "content": f"**{link_title}:** [点击打开]({url})"
-                    }
-                })
+        else:
+            # 如果结果太长，只显示摘要
+            elements.append({
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": f"**📝 处理详情:** 执行成功（详细信息已省略）"
+                }
+            })
     
     # 添加完成时间
     elements.append({
