@@ -127,30 +127,31 @@ def process_workflow(doc_url: str) -> dict:
         logger.info("✅ 工作流事件流结束")
         
         # 提取最终输出
+        import re
+        # 定义匹配 output 的正则表达式模式
+        patterns = [
+            r'"output"\s*:\s*"([^"]+)"',
+            r'output\s*:\s*"([^"]+)"',
+            r'output\s*:\s*([^\s\n,\}]+)',
+        ]
+        
         # 方法1: 从最后一个消息中提取（很多工作流会在最后输出结果）
         if workflow_messages:
             last_message = workflow_messages[-1]
             logger.info(f"最后一条消息: {last_message}")
             
             # 尝试从消息中提取 output
-            import re
-            # 匹配 output: xxx 或 "output": "xxx" 格式
-            patterns = [
-                r'"output"\s*:\s*"([^"]+)"',
-                r'output\s*:\s*"([^"]+)"',
-                r'output\s*:\s*([^\s\n,\}]+)',
-            ]
-            
             for pattern in patterns:
                 match = re.search(pattern, last_message)
                 if match:
                     workflow_output = match.group(1)
-                    logger.info(f"✅ 从消息中提取到 output: {workflow_output}")
+                    logger.info(f"✅ 从最后一条消息中提取到 output: {workflow_output}")
                     break
         
-        # 如果还是没有提取到，检查所有消息
-        if not workflow_output:
+        # 方法2: 如果还是没有提取到，检查所有消息
+        if not workflow_output and workflow_messages:
             full_text = "\n".join(workflow_messages)
+            logger.info(f"尝试从完整文本中提取 output...")
             for pattern in patterns:
                 match = re.search(pattern, full_text)
                 if match:
