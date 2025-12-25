@@ -33,7 +33,7 @@ FEISHU_API_BASE = 'https://open.feishu.cn/open-apis'
 # ===== 自定义机器人 Webhook（可选）=====
 # 如果您想使用自定义机器人 Webhook 发送消息，请填写以下 URL
 # 否则将使用企业自建应用的 API 发送消息
-FEISHU_CUSTOM_BOT_WEBHOOK = 'https://open.feishu.cn/open-apis/bot/v2/hook/61e7e70d-4cfb-4fc5-b51a-8a0b33317f46'
+FEISHU_CUSTOM_BOT_WEBHOOK = 'https://open.feishu.cn/open-apis/bot/v2/hook/2ec2eb28-cd50-4bb9-a6e3-c59ceade1799'
 
 # 是否使用自定义机器人 Webhook 发送消息（True/False）
 USE_CUSTOM_BOT_WEBHOOK = True  # 设置为 True 使用 Webhook，False 使用 API
