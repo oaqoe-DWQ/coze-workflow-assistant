@@ -151,6 +151,11 @@ def build_rich_text_message(
     
     # 如果有工作流结果，添加到卡片中
     if workflow_result:
+        # 尝试从结果中提取链接
+        url_pattern = r'https?://[^\s\)\]]+(?:\([^\)]*\))?[^\s\)\]]*'
+        urls = re.findall(url_pattern, workflow_result)
+        
+        # 显示处理结果文本
         elements.append({
             "tag": "div",
             "text": {
@@ -158,6 +163,21 @@ def build_rich_text_message(
                 "content": f"**处理结果:**\n{workflow_result}"
             }
         })
+        
+        # 如果找到链接，单独显示一个醒目的结果链接
+        if urls:
+            elements.append({
+                "tag": "hr"
+            })
+            for idx, url in enumerate(urls, 1):
+                link_title = f"🔗 结果链接 {idx}" if len(urls) > 1 else "🔗 结果链接"
+                elements.append({
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": f"**{link_title}:** [点击打开]({url})"
+                    }
+                })
     
     # 添加完成时间
     elements.append({
