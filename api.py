@@ -70,15 +70,38 @@ def process_workflow(doc_url: str) -> dict:
                 # 收到消息事件
                 message = event.message
                 logger.info(f"工作流消息内容: {message}")
+                logger.info(f"工作流消息类型: {type(message)}")
+                
+                # 详细记录事件的所有属性
+                logger.info(f"事件完整内容: {event}")
+                logger.info(f"事件属性列表: {dir(event)}")
+                
                 if message:
                     workflow_results.append(str(message))
+                    
+                    # 尝试从消息内容中提取 output
+                    if isinstance(message, dict):
+                        logger.info(f"消息是字典，内容: {message}")
+                        if 'output' in message:
+                            workflow_output = message.get('output')
+                            logger.info(f"✅ 从消息中提取到 output: {workflow_output}")
+                    elif isinstance(message, str):
+                        # 如果消息是字符串，尝试解析 JSON
+                        try:
+                            import json
+                            message_dict = json.loads(message)
+                            if isinstance(message_dict, dict) and 'output' in message_dict:
+                                workflow_output = message_dict.get('output')
+                                logger.info(f"✅ 从 JSON 字符串中提取到 output: {workflow_output}")
+                        except:
+                            pass
                 
-                # 尝试提取输出变量（工作流完成时会包含输出）
+                # 尝试从事件数据中提取输出变量
                 if hasattr(event, 'data') and event.data:
-                    logger.info(f"事件数据: {event.data}")
+                    logger.info(f"事件有 data 属性: {event.data}")
                     if isinstance(event.data, dict) and 'output' in event.data:
                         workflow_output = event.data.get('output')
-                        logger.info(f"✅ 提取到输出变量: {workflow_output}")
+                        logger.info(f"✅ 从 event.data 提取到 output: {workflow_output}")
                     
             elif event.event == WorkflowEventType.ERROR:
                 # 收到错误事件
@@ -116,9 +139,26 @@ def process_workflow(doc_url: str) -> dict:
                         if resume_event.event == WorkflowEventType.MESSAGE:
                             message = resume_event.message
                             logger.info(f"恢复后的消息 [{resume_message_count + 1}]: {message}")
+                            logger.info(f"恢复后的消息类型: {type(message)}")
+                            logger.info(f"恢复后的事件完整内容: {resume_event}")
+                            
                             if message:
                                 workflow_results.append(str(message))
                                 resume_message_count += 1
+                                
+                                # 尝试从恢复后的消息中提取 output
+                                if isinstance(message, dict) and 'output' in message:
+                                    workflow_output = message.get('output')
+                                    logger.info(f"✅ 从恢复消息中提取到 output: {workflow_output}")
+                                elif isinstance(message, str):
+                                    try:
+                                        import json
+                                        message_dict = json.loads(message)
+                                        if isinstance(message_dict, dict) and 'output' in message_dict:
+                                            workflow_output = message_dict.get('output')
+                                            logger.info(f"✅ 从恢复消息 JSON 中提取到 output: {workflow_output}")
+                                    except:
+                                        pass
                         elif resume_event.event == WorkflowEventType.ERROR:
                             error = resume_event.error
                             logger.error(f"恢复后出错: {error}")
@@ -152,6 +192,24 @@ def process_workflow(doc_url: str) -> dict:
             result_text = "\n".join(workflow_results)
             logger.info(f"工作流执行完成，共收到 {len(workflow_results)} 条消息")
         
+        # 如果还没有提取到 output，尝试从结果文本中提取
+        if not workflow_output and result_text:
+            logger.info("尝试从结果文本中提取 output...")
+            # 尝试匹配 "output": "xxx" 或 output : xxx 格式
+            import re
+            output_patterns = [
+                r'"output"\s*:\s*"([^"]+)"',
+                r'output\s*:\s*"([^"]+)"',
+                r'output\s*=\s*"([^"]+)"',
+                r'output:\s*([^\s\n]+)',
+            ]
+            for pattern in output_patterns:
+                match = re.search(pattern, result_text)
+                if match:
+                    workflow_output = match.group(1)
+                    logger.info(f"✅ 从结果文本中提取到 output: {workflow_output}")
+                    break
+        
         # 如果有输出变量，添加到结果中
         if workflow_output:
             logger.info(f"✅ 工作流输出变量: {workflow_output}")
@@ -159,6 +217,8 @@ def process_workflow(doc_url: str) -> dict:
             if workflow_output and not workflow_output.startswith(('http://', 'https://')):
                 workflow_output = f"http://{workflow_output}"
                 logger.info(f"添加协议前缀后: {workflow_output}")
+        else:
+            logger.warning("⚠️ 未能提取到工作流输出变量 (output)")
         
         logger.info(f"最终结果: {result_text}")
         
