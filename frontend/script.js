@@ -1,11 +1,7 @@
 // API 配置
 const API_CONFIG = {
-    // 本地开发时使用
-    // baseUrl: 'http://localhost:5000'
-    
-    // 部署后需要修改为您的后端 API 地址
-    // 例如部署到 Vercel/Render 后的地址
-    baseUrl: 'http://localhost:5000'  // 请在部署时修改此地址
+    // 后端 API 地址（已部署到 Vercel）
+    baseUrl: 'https://coze-workflow-assistant-jovc.vercel.app'
 };
 
 // DOM 元素
