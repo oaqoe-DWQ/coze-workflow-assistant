@@ -108,8 +108,10 @@ def process_workflow(doc_url: str) -> dict:
                 
                 # 递归处理恢复后的事件
                 for resume_event in resume_stream:
+                    logger.info(f"Resume 事件: {resume_event.event}")
                     if resume_event.event == WorkflowEventType.MESSAGE:
                         if resume_event.message:
+                            logger.info(f"Resume 消息内容: {resume_event.message}")
                             workflow_messages.append(str(resume_event.message))
                     elif resume_event.event == WorkflowEventType.ERROR:
                         return {"success": False, "error": str(resume_event.error)}
@@ -126,6 +128,13 @@ def process_workflow(doc_url: str) -> dict:
         
         logger.info("✅ 工作流事件流结束")
         
+        # 打印所有收到的消息（重要！用于调试）
+        logger.info(f"=" * 60)
+        logger.info(f"收到的消息数量: {len(workflow_messages)}")
+        for idx, msg in enumerate(workflow_messages, 1):
+            logger.info(f"消息 [{idx}]: {msg}")
+        logger.info(f"=" * 60)
+        
         # 提取最终输出
         import re
         # 定义匹配 output 的正则表达式模式
@@ -138,7 +147,7 @@ def process_workflow(doc_url: str) -> dict:
         # 方法1: 从最后一个消息中提取（很多工作流会在最后输出结果）
         if workflow_messages:
             last_message = workflow_messages[-1]
-            logger.info(f"最后一条消息: {last_message}")
+            logger.info(f"正在从最后一条消息提取 output: {last_message}")
             
             # 尝试从消息中提取 output
             for pattern in patterns:
@@ -152,6 +161,7 @@ def process_workflow(doc_url: str) -> dict:
         if not workflow_output and workflow_messages:
             full_text = "\n".join(workflow_messages)
             logger.info(f"尝试从完整文本中提取 output...")
+            logger.info(f"完整文本: {full_text}")
             for pattern in patterns:
                 match = re.search(pattern, full_text)
                 if match:
@@ -159,10 +169,20 @@ def process_workflow(doc_url: str) -> dict:
                     logger.info(f"✅ 从完整文本中提取到 output: {workflow_output}")
                     break
         
+        # 如果还是没有提取到，记录警告
+        if not workflow_output:
+            logger.warning("⚠️⚠️⚠️ 警告：未能从工作流消息中提取到 output 变量！")
+            logger.warning(f"请检查工作流是否正确输出了 output 变量")
+            logger.warning(f"当前收到的所有消息: {workflow_messages}")
+        
         # 添加 URL 协议前缀
-        if workflow_output and not workflow_output.startswith(('http://', 'https://')):
-            workflow_output = f"http://{workflow_output}"
-            logger.info(f"添加协议后: {workflow_output}")
+        if workflow_output:
+            if not workflow_output.startswith(('http://', 'https://')):
+                workflow_output = f"http://{workflow_output}"
+                logger.info(f"添加协议后: {workflow_output}")
+            logger.info(f"✅✅✅ 最终输出链接: {workflow_output}")
+        else:
+            logger.error(f"❌❌❌ 未能提取到输出链接！")
         
         # 构建返回结果
         result_text = "\n".join(workflow_messages) if workflow_messages else "工作流执行完成"
