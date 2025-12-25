@@ -48,6 +48,7 @@ def process_workflow(doc_url: str) -> dict:
         
         # 收集工作流的输出结果
         workflow_results = []
+        workflow_completed = False
         
         # 调用工作流（流式）
         stream = coze_client.workflows.runs.stream(
@@ -58,11 +59,16 @@ def process_workflow(doc_url: str) -> dict:
         )
         
         # 处理流式事件
+        logger.info("开始监听工作流事件流...")
+        event_count = 0
         for event in stream:
+            event_count += 1
+            logger.info(f"收到事件 [{event_count}]: {event.event}")
+            
             if event.event == WorkflowEventType.MESSAGE:
                 # 收到消息事件
                 message = event.message
-                logger.info(f"工作流消息: {message}")
+                logger.info(f"工作流消息内容: {message}")
                 if message:
                     workflow_results.append(str(message))
                     
@@ -88,6 +94,7 @@ def process_workflow(doc_url: str) -> dict:
                 
                 # 调用 resume 继续执行工作流
                 try:
+                    logger.info("调用 resume 接口继续执行工作流...")
                     resume_stream = coze_client.workflows.runs.resume(
                         workflow_id=config.COZE_WORKFLOW_ID,
                         event_id=event_id,
@@ -96,12 +103,14 @@ def process_workflow(doc_url: str) -> dict:
                     )
                     
                     # 处理恢复后的流式事件
+                    resume_message_count = 0
                     for resume_event in resume_stream:
                         if resume_event.event == WorkflowEventType.MESSAGE:
                             message = resume_event.message
-                            logger.info(f"恢复后的消息: {message}")
+                            logger.info(f"恢复后的消息 [{resume_message_count + 1}]: {message}")
                             if message:
                                 workflow_results.append(str(message))
+                                resume_message_count += 1
                         elif resume_event.event == WorkflowEventType.ERROR:
                             error = resume_event.error
                             logger.error(f"恢复后出错: {error}")
@@ -109,21 +118,38 @@ def process_workflow(doc_url: str) -> dict:
                                 "success": False,
                                 "error": str(error)
                             }
+                        else:
+                            # 记录其他类型的事件
+                            logger.info(f"恢复后收到事件: {resume_event.event}")
                     
-                    logger.info("工作流恢复执行成功")
+                    logger.info(f"✅ 工作流恢复执行完成，收到 {resume_message_count} 条消息")
                     
                 except Exception as resume_error:
                     logger.error(f"恢复工作流时出错: {str(resume_error)}")
                     workflow_results.append(f"工作流恢复失败: {str(resume_error)}")
+            
+            else:
+                # 记录其他类型的事件（用于调试）
+                logger.info(f"收到其他类型事件: {event.event}")
         
-        # 工作流执行完成
-        result_text = "\n".join(workflow_results) if workflow_results else "工作流执行完成"
+        # 流式事件循环结束，表示工作流已完成
+        workflow_completed = True
+        logger.info("✅ 工作流事件流已结束，工作流执行完成")
         
-        logger.info(f"工作流执行完成，结果: {result_text}")
+        # 检查是否有结果
+        if not workflow_results:
+            logger.warning("工作流执行完成，但未收到任何输出消息")
+            result_text = "工作流执行完成（无输出结果）"
+        else:
+            result_text = "\n".join(workflow_results)
+            logger.info(f"工作流执行完成，共收到 {len(workflow_results)} 条消息")
+        
+        logger.info(f"最终结果: {result_text}")
         
         return {
             "success": True,
-            "result": result_text
+            "result": result_text,
+            "completed": workflow_completed
         }
         
     except Exception as e:
