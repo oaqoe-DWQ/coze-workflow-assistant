@@ -97,24 +97,43 @@ def process_workflow(doc_url: str) -> dict:
                 logger.info(f"INTERRUPT: {event.interrupt}")
                 interrupt_data = event.interrupt.interrupt_data
                 
-                # 自动恢复执行
-                logger.info("自动恢复工作流执行...")
-                resume_stream = coze_client.workflows.runs.resume(
-                    workflow_id=config.COZE_WORKFLOW_ID,
-                    event_id=interrupt_data.event_id,
-                    resume_data="",
-                    interrupt_type=interrupt_data.type
-                )
+                # 递归处理中断（可能会有多次中断）
+                def handle_interrupt(interrupt_event_data, depth=0):
+                    if depth > 10:
+                        logger.error("中断嵌套过深，可能存在循环")
+                        return
+                    
+                    logger.info(f"自动恢复工作流执行... (深度: {depth})")
+                    resume_stream = coze_client.workflows.runs.resume(
+                        workflow_id=config.COZE_WORKFLOW_ID,
+                        event_id=interrupt_event_data.event_id,
+                        resume_data="",
+                        interrupt_type=interrupt_event_data.type
+                    )
+                    
+                    # 处理恢复后的所有事件
+                    for resume_event in resume_stream:
+                        logger.info(f"Resume 事件 (深度{depth}): {resume_event.event}")
+                        
+                        if resume_event.event == WorkflowEventType.MESSAGE:
+                            if resume_event.message:
+                                logger.info(f"Resume 消息内容: {resume_event.message}")
+                                workflow_messages.append(str(resume_event.message))
+                        
+                        elif resume_event.event == WorkflowEventType.ERROR:
+                            raise Exception(str(resume_event.error))
+                        
+                        elif resume_event.event == WorkflowEventType.INTERRUPT:
+                            # 又遇到中断，递归处理
+                            logger.info(f"Resume 后又遇到 INTERRUPT，继续处理...")
+                            handle_interrupt(resume_event.interrupt.interrupt_data, depth + 1)
                 
-                # 递归处理恢复后的事件
-                for resume_event in resume_stream:
-                    logger.info(f"Resume 事件: {resume_event.event}")
-                    if resume_event.event == WorkflowEventType.MESSAGE:
-                        if resume_event.message:
-                            logger.info(f"Resume 消息内容: {resume_event.message}")
-                            workflow_messages.append(str(resume_event.message))
-                    elif resume_event.event == WorkflowEventType.ERROR:
-                        return {"success": False, "error": str(resume_event.error)}
+                # 开始处理中断
+                try:
+                    handle_interrupt(interrupt_data)
+                except Exception as e:
+                    logger.error(f"处理中断时出错: {e}")
+                    return {"success": False, "error": str(e)}
             
             # 其他事件类型，记录用于调试
             else:
