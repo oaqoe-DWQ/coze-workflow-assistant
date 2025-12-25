@@ -53,7 +53,7 @@ def process_workflow(doc_url: str) -> dict:
         stream = coze_client.workflows.runs.stream(
             workflow_id=config.COZE_WORKFLOW_ID,
             parameters={
-                "doc_url": doc_url
+                "inputurl": doc_url
             }
         )
         
