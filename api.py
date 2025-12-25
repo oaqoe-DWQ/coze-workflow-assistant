@@ -76,9 +76,45 @@ def process_workflow(doc_url: str) -> dict:
                 }
                 
             elif event.event == WorkflowEventType.INTERRUPT:
-                # 收到中断事件
-                logger.warning(f"工作流中断: {event.interrupt}")
-                workflow_results.append("工作流需要人工干预")
+                # 收到中断事件，需要继续执行
+                logger.info(f"工作流中断，准备恢复执行: {event.interrupt}")
+                
+                # 获取中断信息
+                interrupt_data = event.interrupt.interrupt_data
+                event_id = interrupt_data.event_id
+                interrupt_type = interrupt_data.type
+                
+                logger.info(f"中断类型: {interrupt_type}, Event ID: {event_id}")
+                
+                # 调用 resume 继续执行工作流
+                try:
+                    resume_stream = coze_client.workflows.runs.resume(
+                        workflow_id=config.COZE_WORKFLOW_ID,
+                        event_id=event_id,
+                        resume_data="continue",  # 继续执行
+                        interrupt_type=interrupt_type
+                    )
+                    
+                    # 处理恢复后的流式事件
+                    for resume_event in resume_stream:
+                        if resume_event.event == WorkflowEventType.MESSAGE:
+                            message = resume_event.message
+                            logger.info(f"恢复后的消息: {message}")
+                            if message:
+                                workflow_results.append(str(message))
+                        elif resume_event.event == WorkflowEventType.ERROR:
+                            error = resume_event.error
+                            logger.error(f"恢复后出错: {error}")
+                            return {
+                                "success": False,
+                                "error": str(error)
+                            }
+                    
+                    logger.info("工作流恢复执行成功")
+                    
+                except Exception as resume_error:
+                    logger.error(f"恢复工作流时出错: {str(resume_error)}")
+                    workflow_results.append(f"工作流恢复失败: {str(resume_error)}")
         
         # 工作流执行完成
         result_text = "\n".join(workflow_results) if workflow_results else "工作流执行完成"
