@@ -10,6 +10,14 @@ COZE_API_TOKEN = 'pat_YxybptyPLdYvVpEkIdyQ656pigqf9ZBpP37FNSHNVQxOFoS6kW3NjiRj3z
 # Coze 工作流 ID（从工作流的网址最后一段数字）
 COZE_WORKFLOW_ID = '7561294254754365486'
 
+# Coze Bot ID（可选，如果工作流需要关联智能体）
+# 如果工作流有数据库节点、变量节点等，通常需要设置此项
+COZE_BOT_ID = None  # 如需要，填写 bot ID，例如：'7234567890123456789'
+
+# Coze App ID（可选，如果是应用中的工作流）
+# 注意：bot_id 和 app_id 不能同时设置
+COZE_APP_ID = None  # 如需要，填写 app ID
+
 # Coze API 基础 URL
 COZE_API_BASE = 'https://api.coze.cn'
 

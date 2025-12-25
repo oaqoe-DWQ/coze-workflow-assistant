@@ -51,13 +51,31 @@ def process_workflow(doc_url: str) -> dict:
         workflow_output = None  # 存储工作流的输出变量
         workflow_completed = False
         
-        # 调用工作流（流式）
-        stream = coze_client.workflows.runs.stream(
-            workflow_id=config.COZE_WORKFLOW_ID,
-            parameters={
+        # 构建工作流调用参数
+        run_params = {
+            "workflow_id": config.COZE_WORKFLOW_ID,
+            "parameters": {
                 "inputurl": doc_url
             }
-        )
+        }
+        
+        # 如果配置了 bot_id，添加到参数中
+        if hasattr(config, 'COZE_BOT_ID') and config.COZE_BOT_ID:
+            run_params["bot_id"] = config.COZE_BOT_ID
+            logger.info(f"使用 Bot ID: {config.COZE_BOT_ID}")
+        
+        # 如果配置了 app_id，添加到参数中（不能与 bot_id 同时使用）
+        if hasattr(config, 'COZE_APP_ID') and config.COZE_APP_ID:
+            if 'bot_id' in run_params:
+                logger.warning("⚠️ bot_id 和 app_id 不能同时使用，优先使用 bot_id")
+            else:
+                run_params["app_id"] = config.COZE_APP_ID
+                logger.info(f"使用 App ID: {config.COZE_APP_ID}")
+        
+        logger.info(f"工作流调用参数: {run_params}")
+        
+        # 调用工作流（流式）
+        stream = coze_client.workflows.runs.stream(**run_params)
         
         # 处理流式事件
         logger.info("开始监听工作流事件流...")
@@ -126,12 +144,22 @@ def process_workflow(doc_url: str) -> dict:
                 # 调用 resume 继续执行工作流
                 try:
                     logger.info("调用 resume 接口继续执行工作流...")
-                    resume_stream = coze_client.workflows.runs.resume(
-                        workflow_id=config.COZE_WORKFLOW_ID,
-                        event_id=event_id,
-                        resume_data="continue",  # 继续执行
-                        interrupt_type=interrupt_type
-                    )
+                    
+                    # 构建 resume 参数
+                    resume_params = {
+                        "workflow_id": config.COZE_WORKFLOW_ID,
+                        "event_id": event_id,
+                        "resume_data": "continue",
+                        "interrupt_type": interrupt_type
+                    }
+                    
+                    # 添加 bot_id 或 app_id（如果有）
+                    if hasattr(config, 'COZE_BOT_ID') and config.COZE_BOT_ID:
+                        resume_params["bot_id"] = config.COZE_BOT_ID
+                    elif hasattr(config, 'COZE_APP_ID') and config.COZE_APP_ID:
+                        resume_params["app_id"] = config.COZE_APP_ID
+                    
+                    resume_stream = coze_client.workflows.runs.resume(**resume_params)
                     
                     # 处理恢复后的流式事件
                     resume_message_count = 0
